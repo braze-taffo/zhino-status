@@ -14,9 +14,9 @@ import { chromium } from 'playwright';
 
 const ST_URL = process.env.ST_URL || 'http://127.0.0.1:8000/';
 const OUT_DIR = '/workspace/zhino-status/screens';
-const RESULT_PATH = '/workspace/zhino-status/st-test/last-run.json';
+const RESULT_PATH = process.env.ZNS_RESULT || '/workspace/zhino-status/st-test/last-run.json';
 
-const ZNS_IMPORT = "import 'http://localhost:8787/index.js'";
+const ZNS_IMPORT = process.env.ZNS_IMPORT || "import 'http://localhost:8787/index.js'";
 const ZHINO_IMPORT = "import 'https://cdn.jsdelivr.net/gh/sillytavner-jpg/zhino-script@v5.2.9/dist/index.js'";
 
 const XIUXIAN_STAT = {

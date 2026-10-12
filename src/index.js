@@ -1,16 +1,19 @@
 /**
  * 人物状态栏（ZNS）——酒馆助手 / SillyTavern 伴侣脚本。
  *
- * 作为 ES 模块加载（iframe 内）：
- *   import 'https://testingcf.jsdelivr.net/gh/<user>/<repo>@<tag>/dist/index.js'
+ * 作为 ES 模块加载（iframe 内），当前发布版 v1.0.1：
+ *   import 'https://testingcf.jsdelivr.net/gh/braze-taffo/zhino-status@v1.0.1/dist/index.js'
+ * 镜像：https://cdn.jsdelivr.net/gh/braze-taffo/zhino-status@v1.0.1/dist/index.js
  *
  * 界面注入宿主页面，类名 / id / CSS 变量一律 zns- 前缀，
  * 避免和 zhino-script 的 .zhino-root、--zn-* 冲突。
  * 玻璃色优先读宿主的 --zn-*（zhino 若把变量挂到可继承处），否则用夜空 / 白昼樱花回退色。
  * 强调色来自当前世界观预设，不占用 zhino 的紫色。
  *
- * 宿主页控制台：window.ZNS = { presets, registerPreset, refresh, setWorldview }
+ * 宿主页控制台：window.ZNS = { version, presets, registerPreset, refresh, setWorldview }
  */
+
+const ZNS_VERSION = '1.0.1';
 
 // ---------------------------------------------------------------------------
 // 纯函数：解析、预设、世界观打分。不碰 DOM，方便 node 自测。
@@ -873,21 +876,74 @@ function buildView(charData, preset, showEmpty) {
 // 启动。浏览器里注入宿主页面；Node 里只留下面的自测入口。
 // ---------------------------------------------------------------------------
 
+function preferredHost() {
+  try {
+    if (window.parent && window.parent !== window && hostBodyReady(window.parent)) return window.parent;
+  } catch {
+    /* 跨域父页读不到 document */
+  }
+  if (hostBodyReady(window)) return window;
+  return null;
+}
+
 function start() {
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
-  const hostWin = (() => {
-    try {
-      return window.parent && window.parent.document ? window.parent : window;
-    } catch {
-      return window;
-    }
-  })();
+  let attempts = 0;
+  let mountedOn = null;
 
-  const hostDoc = hostWin.document;
-  if (!hostDoc) return;
-  if (hostDoc.body) boot(hostWin);
-  else if (hostDoc.readyState === 'loading') hostDoc.addEventListener('DOMContentLoaded', () => boot(hostWin), { once: true });
-  else setTimeout(() => boot(hostWin), 0);
+  const clearPartial = (win) => {
+    try {
+      win?.document?.getElementById('zns-root')?.remove();
+      win?.document?.getElementById('zns-style')?.remove();
+    } catch {
+      /* 清不掉就等下一次 boot 再删 */
+    }
+  };
+
+  const tick = () => {
+    if (attempts > 40) return;
+    const host = preferredHost();
+    if (!host) {
+      attempts += 1;
+      setTimeout(tick, attempts < 8 ? 50 : 250);
+      return;
+    }
+    if (mountedOn === host) return;
+    if (mountedOn && host === window) return;
+    try {
+      boot(host);
+      mountedOn = host;
+    } catch (error) {
+      clearPartial(host);
+      try {
+        console.warn('[zns] 挂到宿主失败，改挂当前窗口', error);
+      } catch {
+        /* 控制台也可能被宿主换掉 */
+      }
+      if (host !== window && mountedOn !== window && hostBodyReady(window)) {
+        try {
+          boot(window);
+          mountedOn = window;
+        } catch (fallbackError) {
+          clearPartial(window);
+          try {
+            console.warn('[zns] 当前窗口也挂不上', fallbackError);
+          } catch {
+            /* 忽略 */
+          }
+        }
+      }
+    }
+    if (mountedOn === window && attempts <= 40) {
+      attempts += 1;
+      setTimeout(tick, 250);
+    }
+  };
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', tick, { once: true });
+  }
+  tick();
 }
 
 function boot(hostWin) {
@@ -1024,7 +1080,10 @@ function boot(hostWin) {
   let destroyed = false;
   let suppressClick = false;
   let optionSig = '';
+  let userPlaced = false;
+  let awaitingViewport = false;
   const offs = [];
+  const eventOffs = [];
   let resizeObserver = null;
   let media = null;
 
@@ -1159,6 +1218,14 @@ function boot(hostWin) {
   }
 
   function loadFab() {
+    const width = hostWin.innerWidth || 0;
+    const height = hostWin.innerHeight || 0;
+    if (width < 80 || height < 80) {
+      awaitingViewport = true;
+      placeFab(8, 8);
+      return;
+    }
+    awaitingViewport = false;
     const raw = safeGet(ls, 'zns_fab_pos');
     if (raw) {
       try {
@@ -1172,7 +1239,7 @@ function boot(hostWin) {
       }
     }
     const size = 52;
-    placeFab(hostWin.innerWidth - size - 20, hostWin.innerHeight - size - 88);
+    placeFab(width - size - 20, height - size - 88);
   }
 
   function positionPanel() {
@@ -1206,7 +1273,9 @@ function boot(hostWin) {
   function startPoll() {
     stopPoll();
     pollTimer = hostWin.setInterval(() => {
-      refresh({ quiet: true });
+      refresh().catch(() => {
+        /* 轮询失败留到下一次 */
+      });
     }, 5000);
   }
 
@@ -1282,6 +1351,8 @@ function boot(hostWin) {
     pointerId = null;
     fab.classList.remove('is-dragging');
     if (dragged) {
+      userPlaced = true;
+      awaitingViewport = false;
       const rect = fab.getBoundingClientRect();
       const pos = placeFab(rect.left, rect.top);
       safeSet(ls, 'zns_fab_pos', JSON.stringify(pos));
@@ -1332,15 +1403,22 @@ function boot(hostWin) {
   }
 
   function onResize() {
-    const rect = fab.getBoundingClientRect();
-    placeFab(rect.left, rect.top);
+    if (awaitingViewport && !userPlaced) loadFab();
+    else {
+      const rect = fab.getBoundingClientRect();
+      placeFab(rect.left, rect.top);
+    }
     if (panelOpen) positionPanel();
   }
 
-  hostDoc.addEventListener('keydown', onKeydown);
-  hostWin.addEventListener('resize', onResize);
-  offs.push(() => hostDoc.removeEventListener('keydown', onKeydown));
-  offs.push(() => hostWin.removeEventListener('resize', onResize));
+  try {
+    hostDoc.addEventListener('keydown', onKeydown);
+    hostWin.addEventListener('resize', onResize);
+    offs.push(() => hostDoc.removeEventListener('keydown', onKeydown));
+    offs.push(() => hostWin.removeEventListener('resize', onResize));
+  } catch {
+    /* 宿主不让挂监听时，按钮和面板仍然在 */
+  }
 
   try {
     media = hostWin.matchMedia('(prefers-color-scheme: light)');
@@ -1377,27 +1455,48 @@ function boot(hostWin) {
   }
 
   function pickFn(name) {
+    const found = [];
+    const consider = (fn) => {
+      if (typeof fn === 'function') found.push(fn);
+    };
+    try { consider(window[name]); } catch { /* iframe 全局不可读 */ }
+    try { consider(window.TavernHelper?.[name]); } catch { /* 忽略 */ }
+    try { consider(window.TavernHelper?._bind?.[`_${name}`]); } catch { /* 忽略 */ }
     try {
-      if (typeof window[name] === 'function') return window[name].bind(window);
-    } catch {
-      /* iframe 全局不可读 */
-    }
-    try {
-      if (hostWin !== window && typeof hostWin[name] === 'function') return hostWin[name].bind(hostWin);
+      if (hostWin !== window) {
+        consider(hostWin[name]);
+        consider(hostWin.TavernHelper?.[name]);
+        consider(hostWin.TavernHelper?._bind?.[`_${name}`]);
+      }
     } catch {
       /* 跨域父页 */
     }
-    return null;
+    const fn = found[0];
+    if (!fn) return null;
+    // 酒馆助手用 this 解析 iframe id。绑到父页会让 _getIframeName 抛 TypeError。
+    try { return fn.bind(window); } catch { return fn; }
   }
 
   function pickGlobal(name) {
     try {
       if (typeof window[name] !== 'undefined') return window[name];
     } catch {
+      /* getter 自己会炸 */
+    }
+    try {
+      if (window.TavernHelper && typeof window.TavernHelper[name] !== 'undefined') return window.TavernHelper[name];
+    } catch {
       /* 忽略 */
     }
     try {
       if (hostWin !== window && typeof hostWin[name] !== 'undefined') return hostWin[name];
+    } catch {
+      /* 忽略 */
+    }
+    try {
+      if (hostWin !== window && hostWin.TavernHelper && typeof hostWin.TavernHelper[name] !== 'undefined') {
+        return hostWin.TavernHelper[name];
+      }
     } catch {
       /* 忽略 */
     }
@@ -1692,7 +1791,9 @@ function boot(hostWin) {
   }
 
   const scheduleRefresh = debounce(() => {
-    refresh();
+    refresh().catch(() => {
+      /* refresh 自己会兜住；这里再挡一层，避免宿主把未处理拒绝当成脚本失败 */
+    });
   }, 280);
 
   async function persistWorldview(id) {
@@ -1737,76 +1838,188 @@ function boot(hostWin) {
     return preset;
   }
 
+  function eventNames() {
+    const keys = ['MESSAGE_RECEIVED', 'MESSAGE_SWIPED', 'CHAT_CHANGED', 'MESSAGE_EDITED', 'MESSAGE_DELETED'];
+    const table = {};
+    const sources = [];
+    const push = (value) => {
+      if (value && typeof value === 'object') sources.push(value);
+    };
+    try { push(window.tavern_events); } catch { /* getter 会炸 */ }
+    try { push(window.event_types); } catch { /* 忽略 */ }
+    try { push(window.TavernHelper?.tavern_events); } catch { /* 忽略 */ }
+    try {
+      if (hostWin !== window) {
+        push(hostWin.tavern_events);
+        push(hostWin.event_types);
+        push(hostWin.TavernHelper?.tavern_events);
+      }
+    } catch {
+      /* 跨域父页 */
+    }
+    for (const source of sources) {
+      for (const key of keys) {
+        if (table[key]) continue;
+        try {
+          const name = source[key];
+          if (typeof name === 'string' && name) table[key] = name;
+        } catch {
+          /* 单个键的 getter 会炸，别拖垮整次绑定 */
+        }
+      }
+    }
+    return table;
+  }
+
   function bindEvents() {
     const on = pickFn('eventOn');
     if (!on) return;
-    const table = pickGlobal('tavern_events') || {};
+    let table = {};
+    try { table = eventNames(); } catch { table = {}; }
     const names = [
       table.MESSAGE_RECEIVED, table.MESSAGE_SWIPED, table.CHAT_CHANGED, table.MESSAGE_EDITED, table.MESSAGE_DELETED,
-      'MESSAGE_RECEIVED', 'message_received',
-      'MESSAGE_SWIPED', 'message_swiped',
-      'CHAT_CHANGED', 'chat_changed', 'chat_id_changed',
-      'MESSAGE_EDITED', 'message_edited',
-      'MESSAGE_DELETED', 'message_deleted',
+      'message_received', 'message_swiped', 'chat_id_changed', 'message_edited', 'message_deleted',
     ];
     const seen = new Set();
     for (const name of names) {
       if (!name || seen.has(name)) continue;
       seen.add(name);
       try {
-        const off = on(name, scheduleRefresh);
-        if (typeof off === 'function') offs.push(off);
+        const off = asUnsubscribe(on(name, scheduleRefresh));
+        if (off) eventOffs.push(off);
       } catch {
         /* 这个事件名宿主不认 */
       }
     }
     try {
       const mvu = pickGlobal('Mvu');
-      const ended = mvu?.events?.VARIABLE_UPDATE_ENDED;
+      let ended = '';
+      try { ended = mvu?.events?.VARIABLE_UPDATE_ENDED || ''; } catch { ended = ''; }
       if (ended && !seen.has(ended)) {
-        const off = on(ended, scheduleRefresh);
-        if (typeof off === 'function') offs.push(off);
+        const off = asUnsubscribe(on(ended, scheduleRefresh));
+        if (off) eventOffs.push(off);
       }
     } catch {
-      /* 没有 MVU 事件 */
+      /* 没有 MVU，状态栏照样显示 */
     }
+  }
+
+  function clearList(list) {
+    list.splice(0).forEach((off) => {
+      try {
+        off();
+      } catch {
+        /* 解绑失败就留下 */
+      }
+    });
+  }
+
+  function detachEvents() {
+    stopPoll();
+    clearList(eventOffs);
   }
 
   function destroy() {
     if (destroyed) return;
     destroyed = true;
-    stopPoll();
-    offs.splice(0).forEach((off) => {
-      try {
-        off();
-      } catch {
-        /* 解绑失败就留下，元素马上会拆掉 */
-      }
-    });
+    clearTimeout(pagehideTimer);
+    detachEvents();
+    clearList(offs);
     try {
       resizeObserver?.disconnect();
     } catch {
       /* 忽略 */
     }
-    root.remove();
-    styleEl.remove();
-    if (hostWin.ZNS && hostWin.ZNS._destroy === destroy) hostWin.ZNS = undefined;
+    try { root.remove(); } catch { /* 节点已经不在树上 */ }
+    try { styleEl.remove(); } catch { /* 忽略 */ }
+    try {
+      if (hostWin.ZNS && hostWin.ZNS._destroy === destroy) hostWin.ZNS = undefined;
+    } catch {
+      /* 父页已经不可写 */
+    }
   }
 
-  hostWin.ZNS = {
-    presets,
-    registerPreset,
-    refresh,
-    setWorldview,
-    _destroy: destroy,
+  let pagehideTimer = 0;
+  const onPageHide = () => {
+    detachEvents();
+    clearTimeout(pagehideTimer);
+    // 隐藏脚本 iframe 会误发 pagehide，模块不会再执行。宿主页面还在就把按钮留住并重新听事件。
+    // 脚本被关掉、iframe 真正卸掉时，下一拍 frame 已经不在树上，再拆界面。
+    pagehideTimer = setTimeout(() => {
+      if (destroyed) return;
+      let keep = false;
+      try {
+        const frame = window.frameElement;
+        keep = !!frame && frame.isConnected && !!hostDoc.body?.isConnected;
+      } catch {
+        keep = false;
+      }
+      if (!keep) {
+        destroy();
+        return;
+      }
+      // 清理保护会在 pagehide 上按 data-th-iframe-id 把按钮从父页摘掉，但 iframe 还在。
+      // 模块不会重新执行，所以这里再挂一次。
+      if (!root.isConnected) {
+        try {
+          window.removeEventListener('pagehide', onPageHide);
+          window.removeEventListener('pageshow', onPageShow);
+          window.removeEventListener('unload', destroy);
+        } catch {
+          /* 卸掉旧监听失败也不要再挂第二套 */
+        }
+        destroyed = true;
+        try { boot(hostWin); } catch { /* 重挂失败就留到下一次刷新 */ }
+        return;
+      }
+      try { bindEvents(); } catch { /* 重新监听失败，按钮仍可手动刷新 */ }
+      if (panelOpen) startPoll();
+    }, 30);
   };
 
-  window.addEventListener('pagehide', destroy);
-  window.addEventListener('unload', destroy);
+  const onPageShow = () => {
+    if (destroyed) return;
+    clearTimeout(pagehideTimer);
+    detachEvents();
+    try { bindEvents(); } catch { /* 按钮还在，打开面板时会再拉一次 */ }
+    if (panelOpen) startPoll();
+  };
 
-  bindEvents();
+  try {
+    hostWin.ZNS = {
+      version: ZNS_VERSION,
+      presets,
+      registerPreset,
+      refresh,
+      setWorldview,
+      _destroy: destroy,
+    };
+  } catch {
+    try {
+      window.ZNS = {
+        version: ZNS_VERSION,
+        presets,
+        registerPreset,
+        refresh,
+        setWorldview,
+        _destroy: destroy,
+      };
+    } catch {
+      /* 两边都写不进全局，界面仍然挂着 */
+    }
+  }
+
+  try {
+    window.addEventListener('pagehide', onPageHide);
+    window.addEventListener('pageshow', onPageShow);
+    window.addEventListener('unload', destroy);
+  } catch {
+    /* 没有 window 事件也不影响按钮 */
+  }
+
   applyTheme();
   loadFab();
+  try { bindEvents(); } catch { /* 事件表坏了也要把按钮留在页面上 */ }
   refresh().then(() => {
     if (destroyed) return;
     try {
@@ -1814,6 +2027,8 @@ function boot(hostWin) {
     } catch {
       /* 自定义事件发不出去不影响面板 */
     }
+  }).catch(() => {
+    /* 不让未处理拒绝把整段脚本判死 */
   });
 }
 
@@ -1830,7 +2045,11 @@ function iconButton(doc, id, label) {
 function svgEl(doc, markup) {
   const wrap = doc.createElement('span');
   wrap.className = 'zns-svg';
-  wrap.innerHTML = markup;
+  try {
+    wrap.innerHTML = markup;
+  } catch {
+    wrap.textContent = '↻';
+  }
   return wrap;
 }
 
@@ -2013,6 +2232,25 @@ function debounce(fn, wait) {
 async function maybeAwait(value) {
   if (value && typeof value.then === 'function') return value;
   return value;
+}
+
+/** 酒馆助手 eventOn 返回 {stop}，旧示例和 demo 返回函数。两种都要能解绑。 */
+function asUnsubscribe(off) {
+  if (typeof off === 'function') return off;
+  if (off && typeof off.stop === 'function') {
+    return () => {
+      off.stop();
+    };
+  }
+  return null;
+}
+
+function hostBodyReady(win) {
+  try {
+    return !!(win && win.document && win.document.body);
+  } catch {
+    return false;
+  }
 }
 
 const SVG_REFRESH = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.6-6.3"/><path d="M21 3v6h-6"/></svg>';
@@ -2452,6 +2690,15 @@ function runSelfTest() {
   }, '沈青禾');
   assert(grouped.length === 1 && grouped[0].name === '沈青禾', 'groups stay one char');
   assert(grouped[0].data.境界 === '筑基' && grouped[0].data.灵石 === 10, 'flatten groups');
+
+  let stopped = 0;
+  const unsub = asUnsubscribe({ stop() { stopped += 1; } });
+  unsub();
+  assert(stopped === 1, 'eventOn {stop}');
+  let called = 0;
+  asUnsubscribe(() => { called += 1; })();
+  assert(called === 1, 'unsubscribe function');
+  assert(asUnsubscribe(null) == null, 'missing unsubscribe');
 
   assert(scoreKeywords('一位筑基修士，身负灵根') === 'xiuxian', 'keyword xiuxian');
   assert(matchWorldviewToken('备注 zns:cyber') === 'cyber', 'zns tag');

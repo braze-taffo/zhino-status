@@ -8,15 +8,21 @@
 
 ## 怎么加载
 
-酒馆助手里新建一条**脚本**（不是正则，也不是样式），内容只留这一行，把用户名、仓库名、版本号换成你自己的：
+酒馆助手里新建一条**脚本**（不是正则，也不是样式），内容只留这一行：
 
 ```javascript
-import 'https://testingcf.jsdelivr.net/gh/<user>/<repo>@<tag>/dist/index.js';
+import 'https://testingcf.jsdelivr.net/gh/braze-taffo/zhino-status@v1.0.1/dist/index.js';
 ```
 
-保存后刷新聊天。页面右下角会出现一颗圆按钮，点开就是状态栏。按钮可以拖，位置记在 localStorage 里。
+`testingcf.jsdelivr.net` 打不开时，换成 jsDelivr 主镜像，版本号不要改：
 
-脚本跑在酒馆助手的 iframe 里，界面会挂到**宿主页面**的 `document.body`。需要 iframe 能访问父页面（酒馆助手默认同源，可以）。
+```javascript
+import 'https://cdn.jsdelivr.net/gh/braze-taffo/zhino-status@v1.0.1/dist/index.js';
+```
+
+保存后刷新聊天。页面右下角会出现一颗圆按钮，点开就是状态栏。按钮可以拖，位置记在 localStorage 里。没有 MVU、聊天还是空的，按钮也会出现，面板里写「还没有状态数据」。
+
+脚本跑在酒馆助手的 iframe 里，界面会挂到**宿主页面**的 `document.body`。需要 iframe 能访问父页面（酒馆助手默认同源，可以）。父页面还没准备好时会重试；父页面跨域或拒绝挂载时，界面留在 iframe 里，聊天页上就看不见。
 
 本地先看效果：打开 `demo.html`（或 `npx serve` 之后访问）。地址参数：
 
@@ -132,3 +138,14 @@ ZNS.refresh();
 - 面板 z-index 很高，盖在酒馆和 zhino 上面。圆按钮和 zhino 的悬浮按钮可能叠在一起，拖开即可。
 - 跨域 iframe 读不到父页面时，界面会留在 iframe 里，酒馆聊天页上看不见。
 - 5 秒轮询只在面板打开时跑。事件没接上、变量又是静默写入时，关上面板再打开，或点刷新。
+
+## 加载失败时怎么查
+
+v1.0.0 在部分酒馆助手里会整段失败：事件表读一下就抛错，按钮还没摆好，模块就被判死；隐藏 iframe 的 `pagehide` 还会把已经挂上的按钮拆掉，而且模块不会再跑一遍。v1.0.1 把这些包进了 try/catch，按钮会先出现。
+
+1. 浏览器直接打开上面的地址。正常是一段 JavaScript，响应头里 `content-type` 含 `javascript`，状态码 200。如果是 HTML（标题像 jsDelivr 报错页、或者「库不存在」），就是镜像还没同步，或这个域名被拦了。换另一条镜像，等一两分钟再刷新。新 tag 推上去之后，两个镜像不一定同时生效。
+2. 酒馆页面按 F12，看主页面控制台，也切到脚本 iframe（名字类似 `TH-script--…`）的控制台。红色的 `Failed to fetch`、`Unexpected token '<'` 是地址没下到脚本。换镜像。
+3. 主页面控制台执行 `ZNS.version`，应是 `'1.0.1'`。再执行 `document.querySelector('#zns-fab')`，应是那个圆按钮。`ZNS.refresh()` 会再读一次变量。
+4. 有按钮但面板是「还没有状态数据」：MVU 不是必需的。按「数据从哪来」检查最新楼层的 `stat_data`，或 AI 回复里的 `<status>`。点面板上的刷新。
+5. 和 zhino 一起用时，两个按钮可能叠在一起，把状态栏按钮拖开。类名是 `zns-`，不会拆 zhino 的节点。
+6. 按钮一闪就没：看是不是关了脚本，或 iframe 真的被卸掉。只是隐藏 iframe 不应再把按钮删掉。
