@@ -1,0 +1,205 @@
+{
+  "startedAt": "2026-10-12T14:16:40.831Z",
+  "stUrl": "http://127.0.0.1:8000/",
+  "scripts": {
+    "zns": "import 'http://localhost:8787/index.js'",
+    "zhino": "import 'https://cdn.jsdelivr.net/gh/sillytavner-jpg/zhino-script@v5.2.9/dist/index.js'"
+  },
+  "steps": [
+    "opened",
+    "onboarding-already-done",
+    "app-ready",
+    "scripts-configured",
+    "script-iframes",
+    "zns-mounted",
+    "character-chat",
+    "zhino-fab",
+    "shot-xiuxian",
+    "shot-cyber",
+    "shot-status"
+  ],
+  "checks": {
+    "scripts": [
+      {
+        "type": "script",
+        "name": "zns",
+        "id": "zns-status-bar",
+        "enabled": true,
+        "content": "import 'http://localhost:8787/index.js'"
+      },
+      {
+        "type": "script",
+        "name": "zhino",
+        "id": "zhino-script",
+        "enabled": true,
+        "content": "import 'https://cdn.jsdelivr.net/gh/sillytavner-jpg/zhino-script@v5.2.9/dist/index.js'"
+      }
+    ],
+    "character": {
+      "idx": 0,
+      "avatar": "ZnsTester.png",
+      "name": "ZnsTester",
+      "chatLength": 1
+    },
+    "fabLayout": {
+      "before": {
+        "zns": {
+          "x": 1368,
+          "y": 760,
+          "width": 52,
+          "height": 52,
+          "className": "zns-fab",
+          "id": "zns-fab"
+        },
+        "zhino": {
+          "x": 1380,
+          "y": 315,
+          "width": 44,
+          "height": 44,
+          "className": "zhino-fab",
+          "id": ""
+        }
+      },
+      "after": {
+        "zns": {
+          "x": 1368,
+          "y": 760,
+          "width": 52,
+          "height": 52,
+          "className": "zns-fab",
+          "id": "zns-fab"
+        },
+        "zhino": {
+          "x": 1380,
+          "y": 315,
+          "width": 44,
+          "height": 44,
+          "className": "zhino-fab",
+          "id": ""
+        }
+      },
+      "overlap": {
+        "area": 0,
+        "separated": true
+      },
+      "znsRootClass": "zns-root",
+      "zhinoRoot": true,
+      "iframeIds": [
+        "TH-script--zhino--zhino-script",
+        "TH-script--zns--zns-status-bar"
+      ]
+    },
+    "zhinoFab": true,
+    "xiuxian": {
+      "applied": {
+        "worldview": "xiuxian",
+        "statKeys": [
+          "林动",
+          "苏晚晴"
+        ]
+      },
+      "panel": {
+        "open": true,
+        "hidden": false,
+        "source": "来源：聊天变量 · 聊天变量",
+        "title": "修仙",
+        "worldview": "",
+        "tabs": [
+          "林动",
+          "苏晚晴"
+        ],
+        "text": "修为\n境界\n筑基中期\n灵根\n变异风灵根\n修为\n36 / 100\n灵力\n82 / 120\n寿元\n186 / 400\n心境\n沉稳\n随身\n功法\n青元剑诀 · 第三层\n风灵步\n法宝\n青冥剑\n储物戒\n灵石\n1,280\n状态\n轻伤\n灵气充盈",
+        "zhinoFab": true,
+        "znsFab": true
+      },
+      "toasts": []
+    },
+    "cyber": {
+      "applied": {
+        "worldview": "cyber",
+        "chatHasStat": false,
+        "messageKeys": [
+          "林朔",
+          "乔琪"
+        ]
+      },
+      "panel": {
+        "open": true,
+        "hidden": false,
+        "source": "来源：聊天变量 · 消息变量",
+        "title": "赛博朋克",
+        "worldview": "",
+        "tabs": [
+          "林朔",
+          "乔琪"
+        ],
+        "text": "机体\nHP\n76 / 100\n人性\n22 / 100\n赛博精神病\n68 / 100\nRAM\n6 / 12\n街头\n义体\n军用臂 · 左\n视界义眼\n反射神经\n欧元币\n18,420\n声望\n35\n通缉等级\n2 / 5\n状态\n淋雨\n义眼过热",
+        "zhinoFab": true,
+        "znsFab": true
+      },
+      "toasts": []
+    },
+    "status": {
+      "applied": {
+        "worldview": "dushi",
+        "chatHasStat": false,
+        "messageHasStat": false,
+        "hasStatusTag": true
+      },
+      "panel": {
+        "open": true,
+        "hidden": false,
+        "source": "来源：聊天变量 · 正文 <status>",
+        "title": "都市",
+        "worldview": "",
+        "tabs": [
+          "周晚"
+        ],
+        "text": "生活\n职业\n调查记者\n金钱\n3,200\n体力\n64 / 100\n精力\n40 / 100\n心情\n紧绷\n好感度\n28 / 100\n人际\n身份\n临江晚报记者\n位置\n旧印刷厂\n状态\n加班\n缺觉",
+        "zhinoFab": true,
+        "znsFab": true
+      },
+      "toasts": []
+    },
+    "passed": {
+      "xiuxian": true,
+      "cyber": true,
+      "status": true,
+      "znsMounted": true,
+      "zhinoFab": true,
+      "fabsSeparated": true,
+      "bothEnabled": true
+    }
+  },
+  "screenshots": [
+    "/workspace/zhino-status/screens/st-xiuxian.png",
+    "/workspace/zhino-status/screens/st-cyber.png",
+    "/workspace/zhino-status/screens/st-status.png"
+  ],
+  "error": null,
+  "console": {
+    "errorCount": 0,
+    "znsErrors": [],
+    "otherErrors": [],
+    "warningCount": 2,
+    "warnings": [
+      {
+        "kind": "console",
+        "type": "warning",
+        "text": "[DEPRECATED] MacrosParser.registerMacro is deprecated and will be removed in a future version. Use macros.registry.registerMacro (from scripts/macros/macro-system.js) or substituteParams({ dynamicMacros }) instead. Arguments: [userAvatarPath, ]",
+        "url": "http://127.0.0.1:8000/scripts/macros.js",
+        "line": 64,
+        "bucket": "other"
+      },
+      {
+        "kind": "console",
+        "type": "warning",
+        "text": "[DEPRECATED] MacrosParser.registerMacro is deprecated and will be removed in a future version. Use macros.registry.registerMacro (from scripts/macros/macro-system.js) or substituteParams({ dynamicMacros }) instead. Arguments: [charAvatarPath, ]",
+        "url": "http://127.0.0.1:8000/scripts/macros.js",
+        "line": 64,
+        "bucket": "other"
+      }
+    ]
+  },
+  "finishedAt": "2026-10-12T14:16:46.149Z"
+}

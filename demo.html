@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>人物状态栏演示</title>
+  <style>
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", "Noto Sans SC", system-ui, sans-serif;
+      background:
+        radial-gradient(900px 420px at 12% -10%, rgba(99, 70, 180, 0.45), transparent 55%),
+        radial-gradient(700px 380px at 90% 8%, rgba(45, 212, 191, 0.12), transparent 50%),
+        #0b1020;
+      color: rgba(255, 255, 255, 0.88);
+    }
+    html[data-demo-theme="light"] body {
+      background:
+        radial-gradient(800px 420px at 0% 0%, rgba(244, 114, 182, 0.35), transparent 55%),
+        radial-gradient(700px 380px at 100% 0%, rgba(167, 139, 250, 0.28), transparent 50%),
+        #fdf6fb;
+      color: #2a2440;
+    }
+    .demo-wrap { max-width: 760px; padding: 28px 22px 120px; }
+    .demo-kicker {
+      font-size: 12px;
+      letter-spacing: 0.14em;
+      opacity: 0.62;
+      margin-bottom: 8px;
+    }
+    h1 { font-size: 22px; font-weight: 600; margin: 0 0 8px; }
+    .demo-lead { margin: 0 0 18px; opacity: 0.78; font-size: 14px; }
+    .demo-msg {
+      max-width: 560px;
+      margin: 0 0 12px;
+      padding: 12px 14px;
+      border-radius: 14px;
+      line-height: 1.55;
+      font-size: 14px;
+    }
+    .demo-msg.user {
+      margin-left: auto;
+      background: rgba(94, 234, 212, 0.16);
+      border: 1px solid rgba(94, 234, 212, 0.28);
+    }
+    html[data-demo-theme="light"] .demo-msg.user {
+      background: rgba(15, 118, 110, 0.08);
+      border-color: rgba(15, 118, 110, 0.2);
+    }
+    .demo-msg.ai {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    html[data-demo-theme="light"] .demo-msg.ai {
+      background: rgba(255, 255, 255, 0.72);
+      border-color: rgba(42, 36, 64, 0.08);
+    }
+    .demo-name { display: block; font-size: 12px; opacity: 0.6; margin-bottom: 4px; }
+  </style>
+  <script>
+    (function () {
+      var params = new URLSearchParams(location.search);
+      var wv = params.get('wv') || 'xiuxian';
+      var theme = params.get('theme') || 'dark';
+      if (theme !== 'light' && theme !== 'auto') theme = 'dark';
+      document.documentElement.setAttribute('data-demo-theme', theme === 'light' ? 'light' : 'dark');
+      try {
+        localStorage.setItem('zns_theme', theme);
+        localStorage.setItem('zns_show_empty', '0');
+        localStorage.removeItem('zns_fab_pos');
+        if (params.get('wv')) {
+          localStorage.setItem('zns_worldview', wv);
+          localStorage.setItem('zns_manual_worldview', wv);
+        } else {
+          localStorage.setItem('zns_worldview', wv);
+          localStorage.setItem('zns_manual_worldview', wv);
+        }
+      } catch (err) { /* 演示页没有存储也不影响接口模拟 */ }
+
+      function yamlQuote(value) {
+        var text = String(value);
+        if (/[:#\[\]{},&*!|>'"%@`]|^\s|\s$/.test(text) || text === '' || /^(true|false|null|~)$/i.test(text)) {
+          return '"' + text.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
+        }
+        return text;
+      }
+      function dumpYaml(value, indent) {
+        var pad = new Array(indent + 1).join(' ');
+        if (Array.isArray(value)) {
+          if (!value.length) return pad + '[]';
+          return value.map(function (item) {
+            if (item && typeof item === 'object') return pad + '- ' + dumpYaml(item, indent + 2).trim();
+            return pad + '- ' + yamlQuote(item);
+          }).join('\n');
+        }
+        if (value && typeof value === 'object') {
+          return Object.keys(value).map(function (key) {
+            var child = value[key];
+            if (child && typeof child === 'object') return pad + key + ':\n' + dumpYaml(child, indent + 2);
+            if (typeof child === 'number' || typeof child === 'boolean') return pad + key + ': ' + String(child);
+            return pad + key + ': ' + yamlQuote(child == null ? '' : child);
+          }).join('\n');
+        }
+        return pad + yamlQuote(value);
+      }
+
+      var packs = {
+        xiuxian: {
+          name2: '林动',
+          description: '青玄宗外门弟子，修仙一途刚入筑基，身负变异风灵根。',
+          personality: '沉稳，重诺。',
+          scenario: '宗门大比在即，灵气异动。',
+          tags: ['zns:xiuxian'],
+          stat: {
+            角色: {
+              林动: {
+                境界: ['筑基中期', '突破未久，道基尚需温养'],
+                灵根: '变异风灵根',
+                修为: { 当前: 36, 上限: 100 },
+                灵力: '82/120',
+                寿元: [186, 400],
+                心境: '沉稳',
+                功法: ['青元剑诀 · 第三层', '风灵步'],
+                法宝: ['青冥剑', '储物戒'],
+                灵石: 1280,
+                状态: ['轻伤', '灵气充盈'],
+                传闻: '藏剑阁昨夜无声自开'
+              },
+              苏晚晴: {
+                境界: '金丹初期',
+                灵根: '水灵根',
+                修为: '71/100',
+                灵力: [96, 140],
+                寿元: '240/800',
+                心境: '波澜不惊',
+                功法: ['玄水诀', '凝霜指'],
+                法宝: ['霜魄针'],
+                灵石: 860,
+                状态: ['闭关']
+              }
+            }
+          }
+        },
+        dushi: {
+          name2: '陈予安',
+          description: '现代都市，临江市医院的住院医，过着加班和地铁的日子。',
+          personality: '嘴硬，心软。',
+          scenario: '夜班第三小时，城市还没睡。',
+          tags: ['世界观:都市'],
+          stat: {
+            角色: {
+              陈予安: {
+                职业: '市立医院住院医',
+                金钱: 8640,
+                体力: 22,
+                精力: 58,
+                心情: '紧绷，还撑得住',
+                好感度: { 当前: 64, 上限: 100 },
+                人际关系: ['周宁 · 同事 / 心动', '母亲 · 每周通话', '科室主任 · 被盯着'],
+                身份: '规培住院医师',
+                位置: '临江市第一医院 · 值班室',
+                状态: ['夜班', '没吃饭'],
+                备忘: '学生贷还剩 42000'
+              },
+              周宁: {
+                职业: '品牌策划',
+                金钱: 23600,
+                体力: 70,
+                精力: 64,
+                心情: '轻松',
+                好感度: 48,
+                人际关系: ['陈予安 · 说不清'],
+                身份: '甲方',
+                位置: '星河湾',
+                状态: ['加班']
+              }
+            }
+          }
+        },
+        moshi: {
+          name2: '老周',
+          description: '末世第 46 天，丧尸还在街区外徘徊，幸存者守着地下车库据点。',
+          personality: '寡言。',
+          scenario: '水只够两天。',
+          tags: ['zns:moshi'],
+          stat: {
+            角色: {
+              老周: {
+                生命: 18,
+                饥饿: 81,
+                口渴: 48,
+                感染度: 8,
+                理智: 61,
+                弹药: 17,
+                物资: ['净水 ×4', '压缩饼干 ×2', '绷带'],
+                据点: '城南地下车库',
+                武器: '改装猎枪',
+                状态: ['擦伤', '缺觉'],
+                伤处: '左小臂划伤，已简单包扎'
+              },
+              阿禾: {
+                生命: 90,
+                饥饿: 30,
+                口渴: 28,
+                感染度: 0,
+                理智: 74,
+                弹药: 6,
+                物资: ['手电', '地图'],
+                据点: '城南地下车库',
+                武器: '短刀',
+                状态: ['警戒']
+              }
+            }
+          }
+        },
+        xihuan: {
+          name2: '艾登',
+          description: '西幻边境的游侠，灰鹰公会的冒险者，和半精灵法师一起走商路。',
+          personality: '谨慎，爱算箭。',
+          scenario: '护送商队前往白桥。',
+          tags: ['世界观:西幻'],
+          stat: {
+            角色: {
+              艾登: {
+                种族: '人类',
+                职业: '游侠',
+                等级: 12,
+                HP: '28/120',
+                MP: [40, 80],
+                金币: 356,
+                阵营: '灰鹰公会',
+                装备: ['猎弓 · 精良', '皮甲', '银匕首'],
+                技能: ['二连射', '陷阱', '急救'],
+                状态: ['轻伤', '祝福'],
+                任务: '护送商队到白桥'
+              },
+              莉娅: {
+                种族: '半精灵',
+                职业: '法师',
+                等级: 11,
+                HP: [70, 90],
+                MP: '88/110',
+                金币: 120,
+                阵营: '灰鹰公会',
+                装备: ['橡木杖', '学徒袍'],
+                技能: ['寒冰箭', '护盾', '照明术'],
+                状态: ['专注']
+              }
+            }
+          }
+        },
+        cyber: {
+          name2: '林朔',
+          description: '赛博朋克都市下环的中间人打手，义体过重，人性已经不多。',
+          personality: '冷，算账很快。',
+          scenario: '雨夜，公司城的探头刚扫过巷口。',
+          tags: ['zns:cyber'],
+          stat: {
+            角色: {
+              林朔: {
+                HP: 76,
+                人性: 22,
+                赛博精神病: 68,
+                RAM: '6/12',
+                义体: ['军用臂 · 左', '视界义眼', '反射神经'],
+                欧元币: 18420,
+                声望: 35,
+                通缉等级: 2,
+                状态: ['淋雨', '义眼过热'],
+                雇主: '夜市中间人「灰雀」'
+              },
+              乔琪: {
+                HP: 90,
+                人性: 64,
+                赛博精神病: 30,
+                RAM: [4, 8],
+                义体: ['皮下甲'],
+                欧元币: 4200,
+                声望: 18,
+                通缉等级: 0,
+                状态: ['潜伏']
+              }
+            }
+          }
+        }
+      };
+
+      if (!packs[wv]) wv = 'xiuxian';
+      if (params.get('xss') === '1') {
+        packs[wv].stat.角色[Object.keys(packs[wv].stat.角色)[0]]['记号'] = '<img src=x onerror="window.__xss=1"><script>window.__xss=1<\/script>';
+      }
+      var pack = packs[wv];
+      var useStatus = params.get('src') === 'status';
+      var state = {
+        chat: { zns_worldview: wv },
+        message: useStatus ? {} : { stat_data: pack.stat }
+      };
+      var aiText = '雨还在下。\n\n<status>\n' + dumpYaml(pack.stat, 0) + '\n</status>';
+
+      window.getVariables = function (opt) {
+        if (opt && opt.type === 'message') return state.message;
+        if (opt && opt.type === 'chat') return state.chat;
+        return {};
+      };
+      window.insertOrAssignVariables = function (patch, opt) {
+        var target = opt && opt.type === 'message' ? state.message : state.chat;
+        Object.assign(target, patch || {});
+        return target;
+      };
+      window.getChatMessages = function () {
+        return [{ message_id: 1, role: 'assistant', message: aiText }];
+      };
+      window.tavern_events = {
+        MESSAGE_RECEIVED: 'message_received',
+        MESSAGE_SWIPED: 'message_swiped',
+        CHAT_CHANGED: 'chat_id_changed',
+        MESSAGE_EDITED: 'message_edited',
+        MESSAGE_DELETED: 'message_deleted'
+      };
+      window.__znsListeners = {};
+      window.eventOn = function (name, fn) {
+        var list = window.__znsListeners[name] || (window.__znsListeners[name] = []);
+        list.push(fn);
+        return function () {
+          window.__znsListeners[name] = (window.__znsListeners[name] || []).filter(function (item) { return item !== fn; });
+        };
+      };
+      if (!useStatus) {
+        window.Mvu = {
+          events: { VARIABLE_UPDATE_ENDED: 'mag_variable_update_ended' },
+          getMvuData: function () { return { stat_data: state.message.stat_data }; }
+        };
+      }
+      window.SillyTavern = {
+        getContext: function () {
+          return {
+            name2: pack.name2,
+            characterId: 0,
+            characters: [{
+              name: pack.name2,
+              description: pack.description,
+              personality: pack.personality,
+              scenario: pack.scenario,
+              tags: pack.tags,
+              data: {
+                tags: pack.tags,
+                character_book: {
+                  entries: [{ comment: 'zns:' + wv, keys: ['世界观'], content: '演示世界书，不参与扫描正文。' }]
+                }
+              }
+            }],
+            chat: [
+              { is_user: true, mes: '现在什么情况？' },
+              { is_user: false, mes: aiText }
+            ]
+          };
+        }
+      };
+      window.__znsDemo = { wv: wv, theme: theme, state: state, pack: pack };
+
+      window.addEventListener('zns-ready', function () {
+        var note = document.getElementById('demo-kicker');
+        if (note) note.textContent = '演示 · ' + wv + (useStatus ? ' · <status>' : ' · MVU');
+        if (params.get('open') === '1') {
+          var fab = document.getElementById('zns-fab');
+          if (fab) fab.click();
+        }
+      });
+    })();
+  </script>
+</head>
+<body>
+  <main class="demo-wrap">
+    <div class="demo-kicker" id="demo-kicker">人物状态栏演示</div>
+    <h1 id="demo-title">聊天还在继续</h1>
+    <p class="demo-lead">右下角的圆按钮是状态栏。演示页模拟了酒馆助手的变量、事件和角色卡。</p>
+    <article class="demo-msg user"><span class="demo-name">你</span>现在什么情况？</article>
+    <article class="demo-msg ai" id="demo-ai"><span class="demo-name">角色</span>风从长街那头过来，灯一盏盏亮了。该看的数字都在状态栏里。</article>
+  </main>
+  <script type="module" src="./src/index.js"></script>
+</body>
+</html>

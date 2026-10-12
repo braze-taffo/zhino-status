@@ -1,0 +1,13 @@
+{
+  "name": "zhino-status-st-test",
+  "private": true,
+  "type": "module",
+  "description": "Headless SillyTavern load test for the zhino-status Tavern Helper script.",
+  "scripts": {
+    "static": "node static-server.mjs",
+    "test": "node load-test.mjs"
+  },
+  "dependencies": {
+    "playwright": "^1.56.0"
+  }
+}
